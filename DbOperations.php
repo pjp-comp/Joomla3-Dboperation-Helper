@@ -6,6 +6,10 @@ defined('_JEXEC') or die('Restricted access');
 class DbOperationsHelper extends JHelperContent
 {
 
+    public static function getInstance()
+    {
+        return new DbOperationsHelper();
+    }
     public function deleteEntry($fieldName = null, $id = 0, $tableName = null){
 
         if(is_null($fieldName) || is_null($tableName) || !is_numeric($id)){
@@ -25,6 +29,82 @@ class DbOperationsHelper extends JHelperContent
         $db->setQuery($query);
         return $db->execute();
     }
+
+    public function getEntriesObj($tableName , $dbOptions = [] , $byKey = null){
+
+           $db    = JFactory::getDBO();
+            $query = $db->getQuery(true);
+
+            $select = array('*');
+
+            $query
+                ->select($select)
+                ->from($db->quoteName($tableName));
+
+               if(!empty($dbOptions)){
+                if(isset($dbOptions['where']) && !empty($dbOptions['where'])){
+
+                    foreach ($dbOptions['where'] as $conKey=>$conV){
+                        if(is_string($conV)){
+                            $query->where($db->quoteName($conKey) ." = " .$db->quote($conV));
+                        }else{
+                            $query->where($db->quoteName($conKey) ." = " .$conV);
+                        }
+                    }
+                }
+//                if(isset($dbOptions['group']) && $dbOptions['group'] != ""){
+//                        $query->group($db->quote($dbOptions['group']));
+//                }
+                if(isset($dbOptions['order']) && $dbOptions['order'] != ""){
+                        $query->order($dbOptions['order']);
+                }
+                if(isset($dbOptions['limit']) && $dbOptions['limit'] != ""){
+                        $query->setLimit($dbOptions['limit']);
+                }
+
+            }
+
+            $db->setQuery((string) $query);
+            return (is_null($byKey)) ? $db->loadObjectList() : $db->loadObjectList($byKey);
+    }
+
+        public function getEntriesArray($tableName , $dbOptions = [] , $byKey = null){
+
+           $db    = JFactory::getDBO();
+            $query = $db->getQuery(true);
+
+            $select = array('*');
+
+            $query
+                ->select($select)
+                ->from($db->quoteName($tableName));
+
+            if(!empty($dbOptions)){
+                if(isset($dbOptions['where']) && !empty($dbOptions['where'])){
+
+                    foreach ($dbOptions['where'] as $conKey=>$conV){
+                        if(is_string($conV)){
+                            $query->where($db->quoteName($conKey) ." = " .$db->quote($conV));
+                        }else{
+                            $query->where($db->quoteName($conKey) ." = " .$conV);
+                        }
+                    }
+                }
+//                if(isset($dbOptions['group']) && $dbOptions['group'] != ""){
+//                        $query->group($db->quote($dbOptions['group']));
+//                }
+                if(isset($dbOptions['order']) && $dbOptions['order'] != ""){
+                        $query->order($dbOptions['order']);
+                }
+                if(isset($dbOptions['limit']) && $dbOptions['limit'] != ""){
+                        $query->setLimit($dbOptions['limit']);
+                }
+
+            }
+            $db->setQuery((string) $query);
+            return (is_null($byKey)) ?  $db->loadAssocList() : $db->loadAssocList($byKey);
+    }
+
     public function getEntryObj($id = 0, $tableName = null, $fieldName = "id"){
 
         /*if(!is_numeric($id) || is_null($tableName) || $fieldName == ""){
@@ -69,8 +149,13 @@ class DbOperationsHelper extends JHelperContent
             }else{
                 $query->where($db->quoteName($fieldName) ." = " .$id);
             }
-            $db->setQuery((string) $query);
-            return $db->loadAssoc();
+            try{
+
+                $db->setQuery((string) $query);
+                return $db->loadAssoc();
+            }catch(Exception $e){
+                return [];
+            }
     }
 
     public function makeEntry($data, $tableName = null){
@@ -235,7 +320,7 @@ class DbOperationsHelper extends JHelperContent
 
 
     // pass string or array
-    public static function wine_log($arMsg){
+    public static function make_log($arMsg){
         //define empty string
         $stEntry="";
         //get the event occur date time,when it will happened
@@ -264,7 +349,7 @@ class DbOperationsHelper extends JHelperContent
 
         //open the file append mode,dats the log file will create day wise
 
-        $fHandler=fopen(JPATH_ROOT."/components/com_laitqb/assets/logs/".$stCurLogFileName,'a+');
+        $fHandler=fopen(JPATH_ROOT."/components/YOUR_COMP_NAME/assets/logs/".$stCurLogFileName,'a+');
 
         //write the info into the file
         fwrite($fHandler,$stEntry);
