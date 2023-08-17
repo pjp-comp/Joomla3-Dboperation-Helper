@@ -232,6 +232,59 @@ class DbOperationsHelper extends JHelperContent
 		return ($isInserted) ? true : false ;
 	}
 
+    public function updateDataWhere($dbOptions = [], $data = array(), $tableName = null ){
+
+            if(empty($data) || is_null($tableName)){
+                return false;
+            }
+
+            $db = JFactory::getDbo();
+            $query = $db->getQuery(true);
+
+            $fields = array();
+
+            // $updateId = (is_integer($data[$updateBy])) ? (int)$data[$updateBy] : $db->quote($data[$updateBy]);
+
+            // unset($data[$updateBy]);
+
+            foreach ($data as $column=>$value){
+
+                if(is_numeric($value)){
+                    $field = $value;
+                }else{
+                    $field = $db->quote($value);
+                }
+                $field = $db->quoteName($column) . ' = ' . $field;
+
+                array_push($fields, $field);
+            }
+
+            $conditions = [];
+            if(!empty($dbOptions)){
+                if(isset($dbOptions['where']) && !empty($dbOptions['where'])){
+
+                    foreach ($dbOptions['where'] as $conKey=>$conV){
+                        if(is_string($conV)){
+//                            $query->where($db->quoteName($conKey) ." = " .$db->quote($conV));
+                            $conditions[] = $db->quoteName($conKey) ." = " .$db->quote($conV);
+                        }else{
+//                            $query->where($db->quoteName($conKey) ." = " .$conV);
+                            $conditions[] = $db->quoteName($conKey) ." = " .$conV;
+
+                        }
+                    }
+                }
+            }
+//            $conditions = array(
+//                $db->quoteName($updateBy) . ' = '.$updateId,
+//            );
+
+            $query->update($db->quoteName($tableName))->set($fields)->where($conditions);
+
+            $db->setQuery($query);
+            return $db->execute();
+
+    }
 	public function updateData($updateBy = "id", $data = array(), $tableName = null ){
 
             if(empty($data) || is_null($tableName)){
@@ -295,7 +348,7 @@ class DbOperationsHelper extends JHelperContent
 
     public function prepareOptions($optionList = array(), $optionKey = "id", $optionName = "name", $activeId = null, $enableSelect = true, $customSelectMsg = "Please Select"){
 
-        if(is_null($activeId)){
+        if(is_null($activeId) || $activeId == 0){
             $selected = "selected";
         }
 
@@ -317,10 +370,189 @@ class DbOperationsHelper extends JHelperContent
 
     }
 
+    private function makerequest($url,$type="GET",$data = null){
+
+        $curl = curl_init();
+        // $url = $this->accountingAppHost.$url;
+        if($type == "GET"){
+            $url .= '?'.http_build_query($data);
+        }
+        else{
+            $post_data = http_build_query($data);
+        }
+
+        curl_setopt($curl, CURLOPT_FOLLOWLOCATION, false);
+
+        curl_setopt_array($curl, array(
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_ENCODING => "",
+            CURLOPT_MAXREDIRS => 10,
+            CURLOPT_TIMEOUT => 36,
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            CURLOPT_CUSTOMREQUEST => $type,
+            CURLOPT_POSTFIELDS => $post_data,
+            // CURLOPT_HTTPHEADER => array(
+            //     "Authorization: ".implode('/',[$this->authtoken,$this->accountlabel]),
+            //     "Cache-Control: no-cache"
+            // ),
+        ));
+        $response = curl_exec($curl);
+        $err = curl_error($curl);
+
+        curl_close($curl);
+
+        if ($err) {
+            echo "cURL Error #:" . $err;
+            return false;
+        } else {
+
+            return $response;
+
+        }
+    }
+
+    public function uploadFile($attachedFiles, $destination) {
+
+		if (!isset($attachedFiles['name']) || empty($attachedFiles['name']) ||  (!isset($destination) && $destination != "" && is_dir($destination))) {
+            die('invalid name/no file/destination');
+			return false;
+		}
+		$application = JFactory::getApplication();
+
+
+        $dest = $destination;
+//        $dest = JPATH_COMPONENT_ADMINISTRATOR."/assets/images/investors";
+//		$dest = JRoute::_(JPATH_SITE . "/media/com_etp/company/");
+		// echo $dest; die('link');
+
+
+
+        $allowExtention = $this->checkExtension($attachedFiles['name']);
+        $isError = $this->checkError($attachedFiles['error']);
+        $allowSize = $this->checkSize($attachedFiles['size']);
+
+        if (!$allowExtention || $isError || !$allowSize) {
+            $application->enqueueMessage(JText::_('FEW FILES ARE INVALID'), 'error');
+            return "";
+        }
+
+        $filename = JFile::makeSafe($attachedFiles['name']);
+        $filename = round(microtime('true')*1000) . $filename;
+
+        $file_tmp_name = $attachedFiles['tmp_name'];
+
+        if (JFile::upload($file_tmp_name, $dest.'/'.$filename)) {
+            return $filename;
+        } else {
+            return "";
+        }
+
+	}
+	private function checkError($fileError) {
+		//any errors the server registered on uploading
+		// $fileError = $_FILES[$fieldName]['error'];
+		if ($fileError > 0) {
+			switch ($fileError) {
+			case 1:
+				echo JText::_('FILE TO LARGE THAN PHP INI ALLOWS');
+				return true;
+
+			case 2:
+				echo JText::_('FILE TO LARGE THAN HTML FORM ALLOWS');
+				return true;
+
+			case 3:
+				echo JText::_('ERROR PARTIAL UPLOAD');
+				return true;
+
+			case 4:
+				echo JText::_('ERROR NO FILE');
+				return true;
+			}
+		}
+		return false;
+	}
+	private function checkSize($fileSize) {
+		if ($fileSize > 2000000) {
+			echo JText::_('FILE BIGGER THAN 2MB');
+			return false;
+		}
+		return true;
+	}
+	private function checkExtension($fileName)
+    {
+        //check the file extension is ok
+        // $fileName = $_FILES[$fieldName]['name'];
+
+        $uploadedFileExtension = JFile::getExt($fileName);
+        // echo $uploadedFileExtension;die;
+
+        $validFileExts = explode(',', 'jpeg,jpg,png');
+
+        if (!in_array($uploadedFileExtension, $validFileExts)) {
+            return false;
+        } else {
+            return true;
+        }
+
+        //assume the extension is false until we know its ok
+        $extOk = false;
+
+        //go through every ok extension, if the ok extension matches the file extension (case insensitive)
+        //then the file extension is ok
+        foreach ($validFileExts as $key => $value) {
+            if (preg_match("/$value/i", $uploadedFileExtension)) {
+                $extOk = true;
+            }
+        }
+
+        if ($extOk == false) {
+            echo JText::_('INVALID EXTENSION');
+            return;
+        }
+    }
+
+    // need to impove
+      public function upload()
+      {
+          // die('fgdg');
+          $result = ['status' => "error", "msg" => "invalid"];
+          $targetPath = JPATH_ROOT . '/images/etp/';
+
+          if (!is_dir(JPATH_ROOT . '/images/etp')) {
+              mkdir(JPATH_ROOT . '/images/etp', 0755);
+          }
+
+          if (!empty($_FILES)) {
+
+              $tempFile = $_FILES['file']['tmp_name'];          //3
+
+              $fileName = time() . str_replace(array('\'', '"', ',', ';', '<', '>', '@'), '', $_FILES['file']['name']);
+
+
+              $targetFile = $targetPath . $fileName;  //5
+
+              if (move_uploaded_file($tempFile, $targetFile)) {
+                  $targetFile = JURI::root() . 'images/etp/' . $fileName;
+                  $result['status'] = "success";
+                  $result['msg'] = $fileName;
+                  $result['filepath'] = $fileName;
+                  echo json_encode($result);
+              } else {
+                  $result['msg'] = "Problem while uploading.";
+                  echo json_encode($result);
+              }
+          } else {
+              $result['msg'] = "File is not there.";
+              echo json_encode($result);
+          }
+          die;
+      }
 
 
     // pass string or array
-    public static function make_log($arMsg){
+    public function make_log($arMsg){
         //define empty string
         $stEntry="";
         //get the event occur date time,when it will happened
@@ -337,24 +569,86 @@ class DbOperationsHelper extends JHelperContent
                 $stEntry.=$arLogData['event_datetime']." (".$k."=)".$msg."\n";
             }
         }
-        else
-        {   //concatenate msg with datetime
-
+        else{   //concatenate msg with datetime
             $stEntry.=$arLogData['event_datetime']." ".$arMsg."\n";
         }
 
         //create file with current date name
-        $stCurLogFileName='res_log'.date('Ymd').'.txt';
+        $stCurLogFileName='ppt_log'.date('Ymd').'.txt';
 
 
         //open the file append mode,dats the log file will create day wise
 
-        $fHandler=fopen(JPATH_ROOT."/components/YOUR_COMP_NAME/assets/logs/".$stCurLogFileName,'a+');
+        $fHandler=fopen(JPATH_COMPONENT."/assets/logs/".$stCurLogFileName,'a+');
 
         //write the info into the file
         fwrite($fHandler,$stEntry);
         //close handler
         fclose($fHandler);
+    }
+         /*
+     *  set associate $data ..its key will be onsider as cookie key and its value as cookie value
+     */
+    public function setCookie($data){
+
+        if(empty($data)){
+            return fasle;
+        }
+
+        $cookieName = key($data);
+        $app = JFactory::getApplication();
+        $value = $app->input->cookie->get($cookieName, null);
+
+
+        // Get the cookie
+//        $value = $app->input->cookie->get($cookieName, null);
+
+        // If there's no cookie value, manually set it
+
+          if ($value == null || $data[$cookieName] != $value) {
+             $value = $data[$cookieName];
+          }else{
+              return false;
+          }
+
+        // Set the cookie
+        $time = time() + 604800; // 1 week
+        $app->input->cookie->set($cookieName, $value, $time, $app->get('cookie_path', '/'), $app->get('cookie_domain'), $app->isSSLConnection());
+//        $app->input->cookie->set($cookieName, $value, $time, '/');
+        return true;
+    }
+
+
+    public function readCookies($cookieName){
+        $app = JFactory::getApplication();
+        $value = $app->input->cookie->get($cookieName, null);
+        return $value;
+    }
+    function getModelAdmin($component, $name = 'Custom', $prefix = 'CustomModel')
+    {
+        JTable::addIncludePath(JPATH_ADMINISTRATOR . '/components/' . $component . '/tables', $prefix);
+        JModelLegacy::addIncludePath(JPATH_ADMINISTRATOR . '/components/' . $component . '/models', $prefix);
+        $model = JModelLegacy::getInstance($name, $prefix, array('ignore_request' => true));
+        return $model;
+    }
+
+//   private $deleteDirectory = null;
+//   https://www.php.net/manual/en/class.closure.php
+// it will empty and remove dir.
+
+    function deleteDirectory($path = ""){
+        $resource = opendir($path);
+        while (($item = readdir($resource)) !== false) {
+            if ($item !== "." && $item !== "..") {
+                if (is_dir($path . "/" . $item)) {
+                    self::deleteDirectory($path . "/" . $item);
+                } else {
+                    unlink($path . "/" . $item);
+                }
+            }
+        }
+        closedir($resource);
+        rmdir($path);
     }
 
 }
