@@ -1,8 +1,10 @@
 <?php
+//namespace etp;
 // No direct access to this file
 defined('_JEXEC') or die('Restricted access');
-
-
+use Joomla\CMS\Factory;
+use Joomla\CMS\Menu\Menu;
+use Joomla\CMS\Menu\MenuItem;
 class DbOperationsHelper extends JHelperContent
 {
 
@@ -12,16 +14,30 @@ class DbOperationsHelper extends JHelperContent
     }
     public function deleteEntry($fieldName = null, $id = 0, $tableName = null){
 
-        if(is_null($fieldName) || is_null($tableName) || !is_numeric($id)){
+        if(is_null($fieldName) || is_null($tableName)){
             return false;
         }
 
         $db = JFactory::getDbo();
 
         $query = $db->getQuery(true);
-        $conditions = array(
-            $db->quoteName($fieldName) . " = " . $id
-        );
+
+
+        if(is_array($id) && !empty($id)){
+            $idsComma = implode(',',$id);
+            $conditions = array(
+                $db->quoteName($fieldName) . " IN (".$idsComma.")"
+            );
+        }else{
+            $conditions = array(
+                $db->quoteName($fieldName) . " = " . $id
+            );
+        }
+
+
+//        $conditions = array(
+//            $db->quoteName($fieldName) . " = " . $id
+//        );
 
         $query->delete($db->quoteName($tableName));
         $query->where($conditions);
@@ -47,8 +63,12 @@ class DbOperationsHelper extends JHelperContent
                     foreach ($dbOptions['where'] as $conKey=>$conV){
                         if(is_string($conV)){
                             $query->where($db->quoteName($conKey) ." = " .$db->quote($conV));
-                        }else{
+                        }elseif(is_numeric($conV)){
                             $query->where($db->quoteName($conKey) ." = " .$conV);
+                        }elseif(is_array($conV) && !empty($conV)){
+                            $query->where($db->quoteName($conKey) ." IN (" .implode(',',$conV).")");
+                        }else{
+                            // $query->where($db->quoteName($conKey) ." = " .$conV);
                         }
                     }
                 }
@@ -85,8 +105,12 @@ class DbOperationsHelper extends JHelperContent
                     foreach ($dbOptions['where'] as $conKey=>$conV){
                         if(is_string($conV)){
                             $query->where($db->quoteName($conKey) ." = " .$db->quote($conV));
-                        }else{
+                        }elseif(is_numeric($conV)){
                             $query->where($db->quoteName($conKey) ." = " .$conV);
+                        }elseif(is_array($conV) && !empty($conV)){
+                            $query->where($db->quoteName($conKey) ." IN (" .implode(',',$conV).")");
+                        }else{
+                            // $query->where($db->quoteName($conKey) ." = " .$conV);
                         }
                     }
                 }
@@ -265,12 +289,13 @@ class DbOperationsHelper extends JHelperContent
 
                     foreach ($dbOptions['where'] as $conKey=>$conV){
                         if(is_string($conV)){
-//                            $query->where($db->quoteName($conKey) ." = " .$db->quote($conV));
-                            $conditions[] = $db->quoteName($conKey) ." = " .$db->quote($conV);
+                            $query->where($db->quoteName($conKey) ." = " .$db->quote($conV));
+                        }elseif(is_numeric($conV)){
+                            $query->where($db->quoteName($conKey) ." = " .$conV);
+                        }elseif(is_array($conV) && !empty($conV)){
+                            $query->where($db->quoteName($conKey) ." IN (" .implode(',',$conV).")");
                         }else{
-//                            $query->where($db->quoteName($conKey) ." = " .$conV);
-                            $conditions[] = $db->quoteName($conKey) ." = " .$conV;
-
+                            // $query->where($db->quoteName($conKey) ." = " .$conV);
                         }
                     }
                 }
@@ -649,6 +674,229 @@ class DbOperationsHelper extends JHelperContent
         }
         closedir($resource);
         rmdir($path);
+    }
+
+    public function csvToArray($file) {
+
+        $rows = array();
+        $headers = array();
+        if (file_exists($file) && is_readable($file)) {
+            $handle = fopen($file, 'r');
+            while (!feof($handle)) {
+                $row = fgetcsv($handle, 10240, ',', '"');
+//                $row = array_map("utf8_encode", $row1);
+                if (empty($headers)){
+                    // $row = array_map("utf8_encode", $row);
+                    $row = array_map('strtolower', $row);
+
+                    $headers = $row;
+                }
+                else if (is_array($row)) {
+                    array_splice($row, count($headers));
+                    $rows[] = array_combine($headers, $row);
+                }
+            }
+            fclose($handle);
+        } else {
+            throw new Exception($file . ' doesn`t exist or is not readable.');
+        }
+        return $rows;
+    }
+
+    public function createPossibilities($quetions, $limit){
+        $result = [];
+
+        foreach ($quetions as $qKey=>$quetion){
+
+            for($count = 1; $count <= $quetion['possibility'];$count++){
+                $newQ = [];
+                $newQ = $quetion;
+                $newQ['ques'] = $newQ['ques'].str_repeat(' ',$count);
+                $result[] = $newQ;
+            }
+        }
+
+
+
+        $additionalGenerate = $this->repeatQuetions($result, $limit);
+
+        $results = array_slice($additionalGenerate, 0, $limit);
+        shuffle($results);
+
+        return $results;
+    }
+
+    public function repeatQuetions($quetions, $limit){
+     
+
+        $original = $quetions;
+
+        $additions = [];
+        if(!empty($quetions) && $limit > 0 && $limit > count($quetions)){
+            // $diff = ceil($limit/count($quetions));
+            $diff = $limit - count($quetions);
+
+
+            while($diff > 0){
+
+                $key = array_rand($quetions, 1);
+                $newArr = [];
+                $quetions[$key]['ques'] = $quetions[$key]['ques'].' '; // adding space avoid repeative quetions. --patiyu
+                $newArr = $quetions[$key];
+                $additions[] = $newArr;
+                $diff--;
+            }
+
+        }
+
+
+        $final = array_merge($original, $additions);
+
+        shuffle($final);
+        return $final;
+    }
+
+    public function shuffleOptions($questions, $attachTags = false){
+
+        if($attachTags){
+            $dbo = DbOperationsHelper::getInstance();
+            $tags = $dbo->getEntriesArray('#__osce_tags',[],'id');
+        }
+
+        $result = [];
+        foreach ($questions as $que){
+
+            if($attachTags){
+
+                $availTags = json_decode($que['tag_id']);
+
+                $catLabel = (count($availTags) > 1) ? "Categories":"Category";
+
+                $attachedTagNams = implode(', ',array_map(function ($tagId)use($tags) {
+                    return (isset($tags[$tagId])) ? ucfirst($tags[$tagId]['title']) : 'N/A';
+                },$availTags));
+
+//                $que['ques'] = $que['ques'] .'( '.$catLabel.': '.$attachedTagNams.')';
+                $que['ques'] = $que['ques'] .'<br><span class="que_category">('.$catLabel.': '.$attachedTagNams.')</span>';
+                $que['ques'] = htmlentities($que['ques']);
+            }
+
+
+            $osce = [];
+            if(isset($que['text']) && isset($que['answers']) && isset($que['correct'])){
+                    $correctAns = $que['answers'][$que['correct']];
+                    $osce['text'] = $que['text'];
+                    $options = $que['answers'];
+            }else{
+
+                $correctAns = $que['opt'.$que['correct_ans']];
+                $osce['text'] = $que['ques'];
+                $options = [];
+                for ($i=1 ; $i<=6; $i++){
+                    if(isset($que['opt'.$i]) && $que['opt'.$i] != ""){
+                        $options[] = $que['opt'.$i];
+                    }
+                }
+
+            }
+
+
+            shuffle($options);
+            $osce['answers'] = $options;
+            $osce['correct'] = array_search($correctAns, $osce['answers']);
+
+            $result[] = $osce;
+        }
+        return $result;
+    }
+
+    function removeDuplicateOnKey($key,$data){
+
+        $_data = array();
+
+        foreach ($data as $v) {
+          if (isset($_data[$v[$key]])) {
+            // found duplicate
+            continue;
+          }
+          // remember unique item
+          $_data[$v[$key]] = $v;
+        }
+        // if you need a zero-based array
+        // otherwise work with $_data
+        $data = array_values($_data);
+        return $data;
+    }
+
+    /**
+     * Webkul Software.
+     *
+     * @category  Webkul
+     * @author    Webkul
+     * @copyright Copyright (c) 2010-2016 Webkul Software Private Limited (https://webkul.com)
+     * @license   https://store.webkul.com/license.html
+     *
+     * getModelAdmin function
+     *
+     * @param [String] $component name of component
+     * @param string $name name of model
+     * @param string $prefix
+     * @return Object
+     */
+    function getModelAdmin($component, $name = 'Custom', $prefix = 'CustomModel')
+    {
+        if (!isset($component)) {
+            JFactory::getApplication()->enqueueMessage(JText::_("COM_ERROR_MSG"), 'error');
+            return false;
+        }
+        $path=JPATH_ADMINISTRATOR . '/components/'.$component.'/models/';
+        JModelLegacy::addIncludePath($path);
+        require_once $path.strtolower($name).'.php';
+        $model = JModelLegacy::getInstance($name, $prefix);
+        // If the model is not loaded then $model will get false
+        if ($model == false) {
+            $class=$prefix.$name;
+            // initilize the model
+            new $class();
+            $model = JModelLegacy::getInstance($name, $prefix);
+        }
+        return $model;
+    }
+
+    /**
+     * Webkul Software.
+     *
+     * @category  Webkul
+     * @author    Webkul
+     * @copyright Copyright (c) 2010-2016 Webkul Software Private Limited (https://webkul.com)
+     * @license   https://store.webkul.com/license.html
+     *
+     *
+     * getModelSite function
+     *
+     * @param [String] $component name of component
+     * @param string $name name of model
+     * @param string $prefix
+     * @return Object
+     */
+    function getModelSite($component, $name = 'Custom', $prefix = 'CustomModel')
+    {
+        if (!isset($component)) {
+            JFactory::getApplication()->enqueueMessage(JText::_("COM_ERROR_MSG"), 'error');
+            return false;
+        }
+        $path=JPATH_SITE . '/components/'.$component.'/models/';
+        JModelLegacy::addIncludePath($path);
+        require_once $path.strtolower($name).'.php';
+        $model = JModelLegacy::getInstance($name, $prefix);
+        // If the model is not loaded then $model will get false
+        if ($model == false) {
+            $class=$prefix.$name;
+            // initilize the model
+            new $class();
+            $model = JModelLegacy::getInstance($name, $prefix);
+        }
+        return $model;
     }
 
 }
