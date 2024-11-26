@@ -289,13 +289,19 @@ class DbOperationsHelper extends JHelperContent
 
                     foreach ($dbOptions['where'] as $conKey=>$conV){
                         if(is_string($conV)){
-                            $query->where($db->quoteName($conKey) ." = " .$db->quote($conV));
+                            // $query->where($db->quoteName($conKey) ." = " .$db->quote($conV));
+                            $conditions[] = $db->quoteName($conKey) ." = " .$db->quote($conV);
                         }elseif(is_numeric($conV)){
-                            $query->where($db->quoteName($conKey) ." = " .$conV);
-                        }elseif(is_array($conV) && !empty($conV)){
-                            $query->where($db->quoteName($conKey) ." IN (" .implode(',',$conV).")");
+                            // $query->where($db->quoteName($conKey) ." = " .$conV);
+                            $conditions[] = $db->quoteName($conKey) ." = " .$conV;
+                        }elseif(is_array($conV)){
+                        	if(!empty($conV)){
+                            // $query->where($db->quoteName($conKey) ." IN (" .implode(',',$conV).")");
+                            $conditions[] = $db->quoteName($conKey) ." IN (" .implode(',',$conV).")";
+                            }
                         }else{
                             // $query->where($db->quoteName($conKey) ." = " .$conV);
+                            $conditions[] = $db->quoteName($conKey) ." = " .$conV;
                         }
                     }
                 }
